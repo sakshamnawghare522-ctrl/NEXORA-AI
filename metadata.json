@@ -1,0 +1,6 @@
+{
+  "name": "RadarAI",
+  "description": "Know what your competitors changed. Know why it matters. Know what to say next. AI-powered competitive intelligence for modern B2B sales teams.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
