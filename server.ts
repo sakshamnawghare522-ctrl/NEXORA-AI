@@ -95,6 +95,35 @@ export class SurveillanceError extends Error {
   }
 }
 
+function cleanTrackingParameters(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    const trackingKeys = [
+      'clickid',
+      'offer_id',
+      'pid',
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_term',
+      'utm_content',
+      'gclid',
+      'fbclid',
+      'aff_id',
+      'affiliate_id',
+      'cuelinks',
+    ];
+    for (const key of Array.from(parsed.searchParams.keys())) {
+      if (trackingKeys.includes(key.toLowerCase()) || key.toLowerCase().startsWith('utm_')) {
+        parsed.searchParams.delete(key);
+      }
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 function isValidPublicUrl(inputUrl: string): { isValid: boolean; normalized: string; error?: string } {
   try {
     let clean = inputUrl.trim();
@@ -102,7 +131,8 @@ function isValidPublicUrl(inputUrl: string): { isValid: boolean; normalized: str
     if (!/^https?:\/\//i.test(clean)) {
       clean = `https://${clean}`;
     }
-    const parsed = new URL(clean);
+    const sanitized = cleanTrackingParameters(clean);
+    const parsed = new URL(sanitized);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return { isValid: false, normalized: '', error: 'URL must use HTTP or HTTPS protocol.' };
     }
@@ -124,7 +154,7 @@ function isValidPublicUrl(inputUrl: string): { isValid: boolean; normalized: str
     ) {
       return { isValid: false, normalized: '', error: 'Private or local addresses cannot be monitored.' };
     }
-    return { isValid: true, normalized: clean };
+    return { isValid: true, normalized: sanitized };
   } catch {
     return { isValid: false, normalized: '', error: 'Invalid website URL format.' };
   }
@@ -133,13 +163,14 @@ function isValidPublicUrl(inputUrl: string): { isValid: boolean; normalized: str
 async function fetchCompetitorWebsite(targetUrl: string): Promise<{ html: string; source: string }> {
   const brightDataKey = process.env.BRIGHT_DATA_API_KEY || process.env.BRIGHTDATA_API_KEY;
 
+  // 1. Bright Data Web Unlocker (if key configured)
   if (brightDataKey) {
     try {
       const bdRes = await fetch('https://api.brightdata.com/request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${brightDataKey}`,
+          Authorization: `Bearer ${brightDataKey}`,
         },
         body: JSON.stringify({
           zone: process.env.BRIGHT_DATA_ZONE || 'web_unlocker',
@@ -153,114 +184,101 @@ async function fetchCompetitorWebsite(targetUrl: string): Promise<{ html: string
           return { html: text, source: 'Bright Data Web Surveillance' };
         }
       } else if (bdRes.status === 401 || bdRes.status === 403) {
-        console.warn('[Radar] Bright Data authentication failed, checking direct fetch');
+        console.warn('[Radar] Bright Data authentication failed, falling back to multi-tier surveillance');
       }
     } catch (e) {
       console.log('[Radar] Bright Data proxy attempt completed with direct fallback', e);
     }
   }
 
-  // Direct fetch with browser headers & timeout
+  // 2. Direct fetch with modern browser headers & timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
+  let directBlocked = false;
+
   try {
-    let res: globalThis.Response;
-    try {
-      res = await fetch(targetUrl, {
-        signal: controller.signal,
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      });
-    } catch (fetchErr: unknown) {
-      clearTimeout(timeoutId);
-      const isAbort = (fetchErr as Error)?.name === 'AbortError';
-      if (isAbort) {
-        throw new SurveillanceError(
-          'WEBSITE_UNREACHABLE',
-          'The competitor website took too long to respond (timeout). Please verify the website address.',
-          504
-        );
-      }
-      throw new SurveillanceError(
-        'WEBSITE_UNREACHABLE',
-        `Unable to reach ${targetUrl}. Please verify the domain address.`,
-        502
-      );
-    }
+    const res = await fetch(targetUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Ch-Ua': '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"macOS"',
+        'Upgrade-Insecure-Requests': '1',
+      },
+    });
     clearTimeout(timeoutId);
 
-    if (res.status === 401 || res.status === 403) {
-      throw new SurveillanceError(
-        'WEBSITE_BLOCKED',
-        'Nexora could not capture this website right now. The target website blocked automated access (HTTP ' + res.status + ' Forbidden/Access Denied).',
-        403
-      );
-    }
+    if (res.ok) {
+      const html = await res.text();
+      const lowerHtml = html.toLowerCase();
+      const isAntiBot =
+        lowerHtml.includes('<title>access denied</title>') ||
+        lowerHtml.includes('<h1>access denied</h1>') ||
+        lowerHtml.includes("you don't have permission to access") ||
+        lowerHtml.includes('attention required! | cloudflare');
 
-    if (res.status === 404) {
+      if (!isAntiBot && html.trim().length >= 30) {
+        return { html, source: 'Nexora Headless Surveillance' };
+      }
+      directBlocked = true;
+    } else if (res.status === 401 || res.status === 403) {
+      directBlocked = true;
+    } else if (res.status === 404) {
       throw new SurveillanceError(
         'WEBSITE_UNREACHABLE',
         'The competitor website URL was not found (HTTP 404). Please verify the link.',
         404
       );
     }
-
-    if (res.status >= 500) {
-      throw new SurveillanceError(
-        'WEBSITE_UNREACHABLE',
-        `The competitor website responded with a server error (HTTP ${res.status}).`,
-        502
-      );
-    }
-
-    if (!res.ok) {
-      throw new SurveillanceError(
-        'WEBSITE_UNREACHABLE',
-        `Website responded with HTTP status ${res.status}`,
-        res.status
-      );
-    }
-
-    const html = await res.text();
-
-    if (!html || html.trim().length < 30) {
-      throw new SurveillanceError(
-        'BASELINE_EXTRACTION_ERROR',
-        'The target website returned empty or invalid HTML content.',
-        422
-      );
-    }
-
-    // Check for common anti-bot/access-denied HTML payloads
-    const lowerHtml = html.toLowerCase();
-    if (
-      lowerHtml.includes('<title>access denied</title>') ||
-      lowerHtml.includes('<h1>access denied</h1>') ||
-      lowerHtml.includes("you don't have permission to access") ||
-      lowerHtml.includes('attention required! | cloudflare')
-    ) {
-      throw new SurveillanceError(
-        'WEBSITE_BLOCKED',
-        'Nexora could not capture this website right now. The target website anti-bot protection blocked automated access.',
-        403
-      );
-    }
-
-    return { html, source: 'Nexora Headless Surveillance' };
-  } catch (err) {
+  } catch (err: unknown) {
     clearTimeout(timeoutId);
-    throw err;
+    if (err instanceof SurveillanceError) throw err;
+    const isAbort = (err as Error)?.name === 'AbortError';
+    if (isAbort) {
+      directBlocked = true;
+    }
   }
+
+  // 3. Multi-Tier Surveillance Reader Fallback (For edge-protected domains like Akamai/Cloudflare)
+  if (directBlocked || true) {
+    try {
+      const proxyRes = await fetch(`https://r.jina.ai/${targetUrl}`, {
+        headers: { Accept: 'text/plain' },
+      });
+      if (proxyRes.ok) {
+        const text = await proxyRes.text();
+        const lower = text.toLowerCase();
+        const isStillBlocked =
+          lower.includes('title: access denied') ||
+          lower.includes('warning: target url returned error 403') ||
+          lower.includes('forbidden');
+
+        if (!isStillBlocked && text.length > 80) {
+          return { html: text, source: 'Nexora Web Intelligence Proxy' };
+        }
+      }
+    } catch {
+      // ignore proxy error
+    }
+  }
+
+  // If both direct and proxy failed with anti-bot protection:
+  throw new SurveillanceError(
+    'WEBSITE_BLOCKED',
+    'Nexora could not capture this website right now. The target website blocked automated access (HTTP 403 Forbidden/Access Denied).',
+    403
+  );
 }
 
 function extractStructuredSnapshot(html: string, url: string, fallbackName?: string) {
-  // Title
-  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  let pageTitle = titleMatch ? titleMatch[1].trim() : '';
+  // Title (support HTML and Markdown format)
+  const titleHtmlMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const titleMdMatch = html.match(/Title:\s*([^\n]+)/i);
+  let pageTitle = titleHtmlMatch ? titleHtmlMatch[1].trim() : titleMdMatch ? titleMdMatch[1].trim() : '';
   pageTitle = pageTitle.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
 
   // Meta Description
@@ -295,10 +313,13 @@ function extractStructuredSnapshot(html: string, url: string, fallbackName?: str
     ) || [];
   const extractedPrices = Array.from(new Set(priceMatches.map((p) => p.trim()))).slice(0, 6);
 
-  // Extract Features & Section Headings
-  const headingMatches = html.match(/<h[1-3][^>]*>([^<]+)<\/h[1-3]>/gi) || [];
-  const extractedFeatures = headingMatches
-    .map((h) => h.replace(/<[^>]+>/g, '').trim())
+  // Extract Features & Section Headings (HTML & Markdown)
+  const headingMatchesHtml = html.match(/<h[1-3][^>]*>([^<]+)<\/h[1-3]>/gi) || [];
+  const headingMatchesMd = html.match(/^#{1,3}\s+([^\n]+)/gm) || [];
+  const extractedFeatures = [
+    ...headingMatchesHtml.map((h) => h.replace(/<[^>]+>/g, '').trim()),
+    ...headingMatchesMd.map((h) => h.replace(/^#{1,3}\s+/, '').trim()),
+  ]
     .filter((h) => h.length > 3 && h.length < 80)
     .slice(0, 5);
 
@@ -1274,7 +1295,15 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error('[Nexora Server] Fatal startup error:', err);
-  process.exit(1);
-});
+// In standalone server execution (e.g. tsx server.ts / Cloud Run), start listening.
+// In Vercel serverless functions (VERCEL=1) or module imports, export app without binding port.
+const isDirectRun = process.argv[1] && (process.argv[1].endsWith('server.ts') || process.argv[1].endsWith('server.js'));
+if (isDirectRun && !process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error('[Nexora Server] Fatal startup error:', err);
+    process.exit(1);
+  });
+}
+
+export { app };
+export default app;

@@ -22,13 +22,16 @@ export class ChatApiService {
 
     if (!response.ok) {
       let errorMsg = `Server error (${response.status})`;
-      try {
-        const errJson = await response.json();
-        if (errJson?.error) {
-          errorMsg = errJson.error;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          const errJson = await response.json();
+          if (errJson?.error) {
+            errorMsg = typeof errJson.error === 'string' ? errJson.error : errJson.error.message || errorMsg;
+          }
+        } catch {
+          // fallback
         }
-      } catch {
-        // use default errorMsg
       }
       throw new Error(errorMsg);
     }

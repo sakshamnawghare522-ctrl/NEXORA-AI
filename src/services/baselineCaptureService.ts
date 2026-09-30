@@ -199,10 +199,14 @@ export class BaselineCaptureService {
    * Scan competitor for changes & AI analysis
    */
   static async scanCompetitorDiff(competitor: MonitoredCompetitor): Promise<ScanDiffResponse> {
+    const baseUrl = typeof window !== 'undefined' ? '' : 'http://localhost:3000';
     try {
-      const response = await fetch('/api/competitors/scan-diff', {
+      const response = await fetch(`${baseUrl}/api/competitors/scan-diff`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({
           competitorId: competitor.id,
           competitorName: competitor.name,
@@ -211,16 +215,23 @@ export class BaselineCaptureService {
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.success) {
-          return {
-            success: true,
-            meaningfulChange: Boolean(data.meaningfulChange),
-            alert: data.alert,
-            updatedTarget: data.updatedTarget,
-          };
+      const contentType = response.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
         }
+      }
+
+      if (response.ok && data?.success) {
+        return {
+          success: true,
+          meaningfulChange: Boolean(data.meaningfulChange),
+          alert: data.alert,
+          updatedTarget: data.updatedTarget,
+        };
       }
     } catch (e) {
       console.log('[BaselineCaptureService] Server scan endpoint error, using resilient diff simulator', e);

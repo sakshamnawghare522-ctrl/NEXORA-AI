@@ -787,8 +787,14 @@ export class IdeaDiscoveryService {
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
+        let data: any = null;
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
         if (data && data.understanding && Array.isArray(data.competitors)) {
           return data as IdeaAnalysisResult;
         }
