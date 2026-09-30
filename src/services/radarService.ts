@@ -146,13 +146,17 @@ export class RadarService {
       throw new Error(valError || 'Please enter a valid website URL.');
     }
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-      const response = await fetch('/api/radar/add-competitor', {
+    const baseUrl = typeof window !== 'undefined' ? '' : 'http://localhost:3000';
+    try {
+      const response = await fetch(`${baseUrl}/api/radar/add-competitor`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({
           website: normalized,
           displayName: data.displayName?.trim(),
@@ -164,25 +168,48 @@ export class RadarService {
 
       clearTimeout(timeoutId);
 
-      const result = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let result: any = null;
 
-      if (!response.ok) {
-        if (response.status === 408 || response.status === 504) {
-          throw new Error('The website took too long to respond. Please try again.');
+      if (contentType.includes('application/json')) {
+        try {
+          result = await response.json();
+        } catch {
+          result = null;
         }
-        if (response.status === 404 || response.status === 403 || response.status === 502) {
-          throw new Error("We couldn't access this website right now. Check the URL and try again.");
-        }
-        throw new Error(result.error || "We couldn't capture the baseline right now.");
       }
 
-      if (!result.competitor) {
+      if (!response.ok || !result || result.success === false) {
+        let errorMsg =
+          result?.error?.message ||
+          (typeof result?.error === 'string' ? result.error : '') ||
+          result?.message;
+
+        if (!errorMsg) {
+          if (response.status === 403) {
+            errorMsg = 'Nexora could not capture this website right now. The website blocked automated access (HTTP 403 Forbidden).';
+          } else if (response.status === 404) {
+            errorMsg = 'The website address was not found (HTTP 404). Please verify the link.';
+          } else if (response.status === 408 || response.status === 504) {
+            errorMsg = 'The website took too long to respond. Please try again.';
+          } else if (response.status === 502) {
+            errorMsg = "We couldn't connect to this website right now. Please check the domain address.";
+          } else {
+            errorMsg = "We couldn't capture the website baseline right now.";
+          }
+        }
+
+        throw new Error(errorMsg);
+      }
+
+      const competitor = result.competitor || result.target;
+      if (!competitor) {
         throw new Error("We couldn't save this competitor. Please try again.");
       }
 
       // Store in CompetitorsStore & Firestore
-      CompetitorsStore.addRadarCompetitor(result.competitor);
-      FirestoreSyncService.saveCompetitor(result.competitor).catch((err) =>
+      CompetitorsStore.addRadarCompetitor(competitor);
+      FirestoreSyncService.saveCompetitor(competitor).catch((err) =>
         console.warn('[Firestore] Async save competitor warning:', err)
       );
 
@@ -193,10 +220,11 @@ export class RadarService {
 
       return {
         success: true,
-        competitor: result.competitor,
+        competitor,
         warning: result.warning,
       };
     } catch (err: unknown) {
+      clearTimeout(timeoutId);
       if (err instanceof Error) {
         if (err.name === 'AbortError') {
           throw new Error('The website took too long to respond. Please try again.');
@@ -211,10 +239,14 @@ export class RadarService {
    * Scan competitor for changes
    */
   static async scanCompetitor(comp: MonitoredCompetitor): Promise<ScanCompetitorResponse> {
+    const baseUrl = typeof window !== 'undefined' ? '' : 'http://localhost:3000';
     try {
-      const response = await fetch('/api/radar/scan-competitor', {
+      const response = await fetch(`${baseUrl}/api/radar/scan-competitor`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({
           competitorId: comp.id,
           website: comp.website,
@@ -224,10 +256,23 @@ export class RadarService {
         }),
       });
 
-      const result: ScanCompetitorResponse = await response.json();
+      const contentType = response.headers.get('content-type') || '';
+      let result: any = null;
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to scan competitor.');
+      if (contentType.includes('application/json')) {
+        try {
+          result = await response.json();
+        } catch {
+          result = null;
+        }
+      }
+
+      if (!response.ok || !result || result.success === false) {
+        const errorMsg =
+          result?.error?.message ||
+          (typeof result?.error === 'string' ? result.error : '') ||
+          'Failed to scan competitor.';
+        throw new Error(errorMsg);
       }
 
       if (result.meaningfulChange && (result.summary || result.whatChanged)) {

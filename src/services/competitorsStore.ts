@@ -133,13 +133,15 @@ const INITIAL_COMPETITORS: MonitoredCompetitor[] = [
 
 export class CompetitorsStore {
   static getCompetitors(): MonitoredCompetitor[] {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          return JSON.parse(stored);
+        }
+      } catch (e) {
+        console.warn('[CompetitorsStore] Failed to read from localStorage', e);
       }
-    } catch (e) {
-      console.warn('[CompetitorsStore] Failed to read from localStorage', e);
     }
     return INITIAL_COMPETITORS;
   }
@@ -163,10 +165,12 @@ export class CompetitorsStore {
     const current = this.getCompetitors();
     const filtered = current.filter((c) => c.id !== target.id && c.name.toLowerCase() !== target.name.toLowerCase());
     const updated = [target, ...filtered];
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (e) {
-      console.warn('[CompetitorsStore] Failed to save to localStorage', e);
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('[CompetitorsStore] Failed to save to localStorage', e);
+      }
     }
     return target;
   }

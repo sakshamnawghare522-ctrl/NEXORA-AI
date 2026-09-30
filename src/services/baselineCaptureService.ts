@@ -102,7 +102,10 @@ export class BaselineCaptureService {
     try {
       const response = await fetch('/api/competitors/add-baseline', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({
           website: normalizedUrl,
           displayName: payload.displayName?.trim() || '',
@@ -111,25 +114,42 @@ export class BaselineCaptureService {
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data && data.success && data.target) {
-          return {
-            success: true,
-            target: data.target,
-          };
-        }
-        if (data && data.error) {
-          return { success: false, error: data.error };
-        }
-      } else {
-        const errJson = await response.json().catch(() => null);
-        if (errJson?.error) {
-          return { success: false, error: errJson.error };
+      const contentType = response.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
         }
       }
+
+      if (response.ok && data?.success && (data.target || data.competitor)) {
+        return {
+          success: true,
+          target: data.target || data.competitor,
+        };
+      }
+
+      if (data?.error) {
+        const errorMsg =
+          typeof data.error === 'string'
+            ? data.error
+            : data.error.message || 'Unable to capture website baseline.';
+        return { success: false, error: errorMsg };
+      }
+
+      if (!response.ok) {
+        const fallbackMsg =
+          response.status === 403
+            ? 'Nexora could not capture this website right now. The website blocked automated access (HTTP 403 Forbidden).'
+            : response.status === 404
+            ? 'The website address was not found (HTTP 404).'
+            : 'Unable to capture website baseline right now.';
+        return { success: false, error: fallbackMsg };
+      }
     } catch (e) {
-      console.log('[BaselineCaptureService] Server API unavailable, using resilient local baseline engine', e);
+      console.log('[BaselineCaptureService] Request error:', e);
     }
 
     // Resilient local baseline generator if server is offline or unreachable
