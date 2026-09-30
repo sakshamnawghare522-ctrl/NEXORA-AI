@@ -10,7 +10,19 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertTriangle,
+  TrendingDown,
+  TrendingUp,
+  DollarSign,
+  ShieldCheck,
+  Layers,
+  ArrowRight,
 } from 'lucide-react';
+import { EstimatedRevenueRiskBar } from './pipeline/EstimatedRevenueRiskBar.tsx';
+import {
+  calculateRevenueRisk,
+  formatCurrency,
+  SCENARIO_RISK_PROFILES,
+} from '../services/revenueRiskService.ts';
 
 interface ObjectionScenario {
   id: string;
@@ -78,7 +90,7 @@ const PRESET_OBJECTIONS: ObjectionScenario[] = [
     },
     counterPitch: {
       immediateResponse:
-        '"MetricPulse did introduce an automated export this week, but their terms limit reports to 1 per quarter and exclude real-time continuous auditor access. In contrast, our platform provides live continuous continuous evidence streams that your external auditor can access directly 365 days a year."',
+        '"MetricPulse did introduce an automated export this week, but their terms limit reports to 1 per quarter and exclude real-time continuous auditor access. In contrast, our platform provides live continuous evidence streams that your external auditor can access directly 365 days a year."',
       talkingPoints: [
         'Validate the customer inquiry gracefully.',
         'Clarify the limitation: MetricPulse offers quarterly static exports, not continuous real-time auditor integration.',
@@ -148,6 +160,15 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
   const currentScenario =
     PRESET_OBJECTIONS.find((s) => s.id === selectedScenarioId) || PRESET_OBJECTIONS[0];
 
+  // Dynamic calculations for the active scenario
+  const currentRisk = calculateRevenueRisk(
+    selectedScenarioId,
+    customResponse ? customObjection : null,
+    750000,
+    14,
+    'unprepared'
+  );
+
   const handleSimulateCustom = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customObjection.trim()) return;
@@ -179,12 +200,18 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
         <p className="radar-section-desc">
           Static battlecards become obsolete the moment a competitor pushes an update.
           Nexora continuously monitors public websites, isolates genuine commercial shifts,
-          and gives sales reps the exact counter-pitch before their next call.
+          quantifies deal revenue exposure, and gives sales reps the exact counter-pitch before their next call.
         </p>
       </div>
 
       {/* Interactive Pipeline Card */}
       <div className="radar-pipeline-card">
+        {/* Dynamic Estimated Revenue Risk Indicator Header Bar */}
+        <EstimatedRevenueRiskBar
+          scenarioId={selectedScenarioId}
+          customObjection={customResponse ? customObjection : null}
+        />
+
         {/* Navigation Tabs */}
         <div className="radar-pipeline-nav" role="tablist" aria-label="Pipeline Steps">
           <button
@@ -217,7 +244,7 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
             type="button"
           >
             <span className="radar-pipeline-step-num">3</span>
-            <span>NEXORA Strategic Analysis</span>
+            <span>NEXORA Strategic &amp; Risk Analysis</span>
           </button>
 
           <button
@@ -269,7 +296,7 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
                 </div>
                 <div>
                   <span style={{ color: 'var(--radar-blue-accent)' }}>TARGET_URL:</span>{' '}
-                  &quot;https://cloudscale.example.com/pricing&quot;
+                  &quot;{currentScenario.url}&quot;
                 </div>
                 <div>
                   <span style={{ color: 'var(--radar-blue-accent)' }}>CAPTURE_ENGINE:</span>{' '}
@@ -310,13 +337,16 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
               <div className="radar-diff-box">
                 <div className="radar-diff-header">
                   <span className="radar-diff-tag">Observed Commercial Diff</span>
-                  <span className="radar-diff-meta">Target: CloudScale Pricing Table</span>
+                  <span className="radar-diff-meta">Target: {currentScenario.competitor}</span>
                 </div>
                 <div className="radar-diff-line removed">
-                  - &lt;div class=&quot;price-card&quot;&gt;Pro: $99/mo (Includes Dedicated SLA &amp; Disaster Recovery)&lt;/div&gt;
+                  - {currentScenario.observedChange.previous}
                 </div>
                 <div className="radar-diff-line added">
-                  + &lt;div class=&quot;price-card&quot;&gt;Pro: $69/mo (Base Tier — SLA &amp; Multi-Region Backups available as $149 Add-on)&lt;/div&gt;
+                  + {currentScenario.observedChange.current}
+                </div>
+                <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--radar-gray-600)' }}>
+                  <strong>Summary of detected shift:</strong> {currentScenario.observedChange.diffSummary}
                 </div>
               </div>
             </motion.div>
@@ -327,57 +357,156 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}
+              style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <BrainCircuit size={20} color="#7c3aed" />
                 <h3 style={{ fontSize: '18px', fontWeight: 500 }}>
-                  Step 3: NEXORA Strategic Implications &amp; Threat Scoring
+                  Step 3: NEXORA Strategic Implications &amp; Revenue Risk Scoring
                 </h3>
               </div>
               <p style={{ fontSize: '15px', color: 'var(--radar-gray-600)', lineHeight: '1.6', maxWidth: '780px' }}>
                 NEXORA (Know what changed. Know what matters. Know what to say.) receives the isolated deterministic diff alongside your product positioning.
-                It produces structured, schema-validated intelligence explaining the true business motive
-                and threat classification.
+                It produces structured, schema-validated intelligence explaining the true business motive,
+                threat classification, and calculates the exact pipeline revenue exposure.
               </p>
 
-              <div
-                style={{
-                  background: 'var(--radar-gray-50)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '12px',
-                  padding: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 600 }}>NEXORA Strategic Analysis</span>
-                  <span className="radar-threat-badge">
-                    <ShieldAlert size={14} /> Threat Level: HIGH
-                  </span>
+              {/* Strategic Analysis Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+                {/* Strategic Motive Card */}
+                <div
+                  style={{
+                    background: 'var(--radar-gray-50)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '14px',
+                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Commercial Intent &amp; Positioning</span>
+                    <span className="radar-threat-badge">
+                      <ShieldAlert size={14} /> Threat Level: {currentScenario.threatLevel}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--radar-gray-800)', marginBottom: '4px' }}>
+                      Why It Matters in Active Cycles:
+                    </h4>
+                    <p style={{ fontSize: '14px', color: 'var(--radar-gray-600)', lineHeight: '1.5' }}>
+                      {selectedScenarioId === 'pricing-drop'
+                        ? 'CloudScale is executing an unbundling strategy to capture mid-market deals by lowering their headline cost, while clawing back margin via enterprise add-ons. Sales reps will encounter prospects saying CloudScale is "30% cheaper".'
+                        : selectedScenarioId === 'feature-launch'
+                        ? 'MetricPulse is positioning a self-serve SOC-2 badge to neutralize compliance objections in SMB and Mid-Market deals, but caps exports to quarterly PDFs to force upgrades.'
+                        : 'NexusData is using "Unlimited API" marketing headlines to attract data-heavy prospects, but instituting strict 25 req/sec throttles in the updated terms of service.'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--radar-gray-800)', marginBottom: '4px' }}>
+                      Recommended Sales Counter-Strategy:
+                    </h4>
+                    <p style={{ fontSize: '14px', color: 'var(--radar-gray-600)', lineHeight: '1.5' }}>
+                      {selectedScenarioId === 'pricing-drop'
+                        ? 'Do not engage in price-matching. Frame CloudScale\'s new pricing as an unexpected cost risk where mission-critical SLAs cost an extra $149/mo, proving our all-inclusive enterprise tier is more economical.'
+                        : selectedScenarioId === 'feature-launch'
+                        ? 'Educate prospective CISOs on continuous live auditor integrations versus quarterly static PDFs to preserve enterprise contract value.'
+                        : 'Challenge engineering leads on peak batch concurrency thresholds (500 req/sec vs their 25 req/sec ceiling).'}
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--radar-gray-800)', marginBottom: '4px' }}>
-                    Why It Matters:
-                  </h4>
-                  <p style={{ fontSize: '14px', color: 'var(--radar-gray-600)', lineHeight: '1.5' }}>
-                    CloudScale is executing an unbundling strategy to capture mid-market deals by lowering their headline cost,
-                    while clawing back margin via enterprise add-ons. Sales reps will encounter prospects saying
-                    CloudScale is &quot;30% cheaper&quot;.
-                  </p>
-                </div>
+                {/* Quantitative Pipeline Revenue Risk Model Card */}
+                <div
+                  className={`radar-risk-step-card ${currentRisk.severity.toLowerCase()}`}
+                  style={{
+                    padding: '24px',
+                    borderRadius: '14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <DollarSign size={18} color="#b91c1c" />
+                        <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Estimated Revenue Risk Modeling
+                        </span>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '9999px',
+                          background: 'rgba(0,0,0,0.06)',
+                        }}
+                      >
+                        {currentRisk.severity} EXPOSURE
+                      </span>
+                    </div>
 
-                <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--radar-gray-800)', marginBottom: '4px' }}>
-                    Recommended Sales Counter-Strategy:
-                  </h4>
-                  <p style={{ fontSize: '14px', color: 'var(--radar-gray-600)', lineHeight: '1.5' }}>
-                    Do not engage in price-matching. Frame CloudScale&apos;s new pricing as an unexpected cost risk
-                    where mission-critical SLAs cost an extra $149/mo, proving our all-inclusive enterprise tier is more economical.
-                  </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                      <div style={{ background: 'rgba(255, 255, 255, 0.7)', padding: '12px', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--radar-gray-500)', display: 'block' }}>
+                          Revenue At Risk
+                        </span>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#b91c1c', marginTop: '2px' }}>
+                          {formatCurrency(currentRisk.revenueAtRisk)}
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--radar-gray-600)' }}>
+                          -{currentRisk.winRateDropPercent}% close rate drag
+                        </span>
+                      </div>
+
+                      <div style={{ background: 'rgba(255, 255, 255, 0.7)', padding: '12px', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--radar-gray-500)', display: 'block' }}>
+                          Protected with Nexora
+                        </span>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#059669', marginTop: '2px' }}>
+                          +{formatCurrency(currentRisk.protectedRevenue)}
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--radar-gray-600)' }}>
+                          {Math.round(currentRisk.insight.nexoraRecoveryRate * 100)}% quota defense
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '12px', lineHeight: '1.5', color: 'var(--radar-gray-700)' }}>
+                      <strong>Active Pipeline Exposure:</strong> {formatCurrency(currentRisk.exposedPipeline)} across{' '}
+                      {currentRisk.dealsExposed} deals evaluating {currentScenario.competitor}. Sales cycles stall an average of{' '}
+                      <strong>+{currentRisk.insight.salesCycleDelayDays} days</strong> without deterministic counter-evidence.
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
+                    <span style={{ fontWeight: 600 }}>Next: Equip Sales Reps in Step 4</span>
+                    <button
+                      onClick={() => setActiveStep(4)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: 'var(--radar-black)',
+                        color: 'var(--radar-white)',
+                        border: 'none',
+                        borderRadius: '9999px',
+                        padding: '6px 14px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      type="button"
+                    >
+                      <span>Simulate Pitch</span>
+                      <ArrowRight size={12} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -393,11 +522,11 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Sparkles size={20} color="var(--radar-black)" />
                 <h3 style={{ fontSize: '18px', fontWeight: 500 }}>
-                  Step 4: Live Counter-Pitch Simulator
+                  Step 4: Live Counter-Pitch Simulator &amp; Quota Protection
                 </h3>
               </div>
 
-              {/* Scenario Selector */}
+              {/* Scenario Selector with Dynamic Risk Badges */}
               <div>
                 <span
                   style={{
@@ -412,28 +541,57 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
                   Select Competitor Objection Scenario:
                 </span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {PRESET_OBJECTIONS.map((scenario) => (
-                    <button
-                      key={scenario.id}
-                      onClick={() => {
-                        setSelectedScenarioId(scenario.id);
-                        setCustomResponse(null);
-                      }}
-                      className="radar-hero-tag-pill"
-                      style={{
-                        borderColor:
-                          selectedScenarioId === scenario.id ? 'var(--radar-black)' : 'rgba(0,0,0,0.12)',
-                        backgroundColor:
-                          selectedScenarioId === scenario.id ? 'var(--radar-black)' : 'var(--radar-white)',
-                        color:
-                          selectedScenarioId === scenario.id ? 'var(--radar-white)' : 'var(--radar-black)',
-                      }}
-                      type="button"
-                    >
-                      <span>{scenario.competitor}:</span>
-                      <strong>&quot;{scenario.objection}&quot;</strong>
-                    </button>
-                  ))}
+                  {PRESET_OBJECTIONS.map((scenario) => {
+                    const scenarioProfile = SCENARIO_RISK_PROFILES[scenario.id];
+                    const estRiskAmount = scenarioProfile
+                      ? Math.round(750000 * scenarioProfile.exposureRate * scenarioProfile.winRateErosion)
+                      : 0;
+
+                    return (
+                      <button
+                        key={scenario.id}
+                        onClick={() => {
+                          setSelectedScenarioId(scenario.id);
+                          setCustomResponse(null);
+                        }}
+                        className="radar-hero-tag-pill"
+                        style={{
+                          borderColor:
+                            selectedScenarioId === scenario.id ? 'var(--radar-black)' : 'rgba(0,0,0,0.12)',
+                          backgroundColor:
+                            selectedScenarioId === scenario.id ? 'var(--radar-black)' : 'var(--radar-white)',
+                          color:
+                            selectedScenarioId === scenario.id ? 'var(--radar-white)' : 'var(--radar-black)',
+                        }}
+                        type="button"
+                      >
+                        <span>{scenario.competitor}:</span>
+                        <strong>&quot;{scenario.objection}&quot;</strong>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '9999px',
+                            backgroundColor:
+                              selectedScenarioId === scenario.id
+                                ? 'rgba(255,255,255,0.2)'
+                                : scenario.threatLevel === 'HIGH'
+                                ? '#fee2e2'
+                                : '#fef3c7',
+                            color:
+                              selectedScenarioId === scenario.id
+                                ? 'var(--radar-white)'
+                                : scenario.threatLevel === 'HIGH'
+                                ? '#991b1b'
+                                : '#92400e',
+                          }}
+                        >
+                          {formatCurrency(estRiskAmount)} Risk
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -477,6 +635,29 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
                     <span className="radar-threat-badge">
                       <ShieldAlert size={12} /> {currentScenario.threatLevel} PRIORITY
                     </span>
+                  </div>
+
+                  {/* Dynamic Revenue Preserved Callout */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: '#ecfdf5',
+                      border: '1px solid #a7f3d0',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      marginBottom: '12px',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#065f46' }}>
+                      <ShieldCheck size={15} color="#059669" />
+                      <span>
+                        <strong>Defending {formatCurrency(currentRisk.revenueAtRisk)} ARR:</strong> Reclaims{' '}
+                        {Math.round(currentRisk.insight.nexoraRecoveryRate * 100)}% of threatened pipeline deals.
+                      </span>
+                    </div>
                   </div>
 
                   <div className="radar-counterpitch-say">
@@ -566,7 +747,7 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
                     disabled={isSimulating || !customObjection.trim()}
                   >
                     <Send size={13} />
-                    <span>{isSimulating ? 'Analyzing...' : 'Generate Counter-Pitch'}</span>
+                    <span>{isSimulating ? 'Analyzing & Modeling Risk...' : 'Generate Counter-Pitch'}</span>
                   </button>
                 </form>
 
@@ -576,18 +757,63 @@ export const InteractivePipelineSection: React.FC<InteractivePipelineSectionProp
                     animate={{ opacity: 1, y: 0 }}
                     style={{
                       marginTop: '16px',
-                      padding: '14px',
+                      padding: '16px',
                       background: 'var(--radar-white)',
                       border: '1px solid var(--border-strong)',
-                      borderRadius: '8px',
+                      borderRadius: '10px',
                       fontSize: '14px',
                       lineHeight: '1.5',
                     }}
                   >
-                    <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--radar-gray-500)', display: 'block', marginBottom: '6px' }}>
-                      Nexora Tactical Response:
-                    </span>
-                    {customResponse}
+                    {/* Dynamic Revenue Risk Tag for Custom Objection */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingBottom: '10px',
+                        marginBottom: '10px',
+                        borderBottom: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--radar-gray-500)' }}>
+                        Nexora Tactical Response
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          background: '#fef2f2',
+                          color: '#991b1b',
+                          border: '1px solid #fecaca',
+                        }}
+                      >
+                        Dynamic Impact: {formatCurrency(calculateRevenueRisk(selectedScenarioId, customObjection).revenueAtRisk)} At Risk
+                      </span>
+                    </div>
+
+                    <p style={{ margin: 0, color: 'var(--radar-black)' }}>{customResponse}</p>
+
+                    <div
+                      style={{
+                        marginTop: '12px',
+                        padding: '8px 12px',
+                        background: '#f0fdf4',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        color: '#166534',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <ShieldCheck size={14} color="#059669" />
+                      <span>
+                        Estimated Defense: Armed reps protect ~86% of pipeline deals from this objection.
+                      </span>
+                    </div>
                   </motion.div>
                 )}
               </div>

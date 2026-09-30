@@ -18,7 +18,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onStop,
   isGenerating,
   disabled = false,
-  placeholder = 'Ask Nexora about competitor changes, pricing adjustments, or sales battlecards...',
+  placeholder = 'Ask Nexora anything...',
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

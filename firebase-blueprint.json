@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public profile information of an authenticated Nexora user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "photoURL": { "type": "string", "maxLength": 512 },
+        "company": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["userId", "email", "createdAt"]
+    },
+    "MonitoredCompetitor": {
+      "title": "MonitoredCompetitor",
+      "description": "Competitor surveillance target tracked by the user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 128 },
+        "website": { "type": "string", "maxLength": 512 },
+        "status": { "type": "string", "maxLength": 64 },
+        "category": { "type": "string", "maxLength": 128 },
+        "lastScannedAt": { "type": "string", "maxLength": 64 },
+        "nextCheckAt": { "type": "string", "maxLength": 64 },
+        "keyShift": { "type": "string", "maxLength": 1024 },
+        "changesCount": { "type": "number" },
+        "impactLevel": { "type": "string", "maxLength": 32 },
+        "lastChangeType": { "type": "string", "maxLength": 64 },
+        "lastChangeTime": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "userId", "name", "website", "status"]
+    },
+    "RadarAlert": {
+      "title": "RadarAlert",
+      "description": "Real-time AI detected competitor change alert",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "competitorId": { "type": "string", "maxLength": 128 },
+        "competitorName": { "type": "string", "maxLength": 128 },
+        "severity": { "type": "string", "maxLength": 32 },
+        "title": { "type": "string", "maxLength": 256 },
+        "changeType": { "type": "string", "maxLength": 64 },
+        "whatChanged": { "type": "string", "maxLength": 2048 },
+        "whyItMatters": { "type": "string", "maxLength": 2048 },
+        "threatOrOpportunity": { "type": "string", "maxLength": 32 },
+        "impactLevel": { "type": "string", "maxLength": 32 },
+        "recommendedAction": { "type": "string", "maxLength": 2048 },
+        "improvedSolution": { "type": "string", "maxLength": 2048 },
+        "customerResponse": { "type": "string", "maxLength": 2048 },
+        "before": { "type": "string", "maxLength": 1024 },
+        "after": { "type": "string", "maxLength": 1024 },
+        "detectedAt": { "type": "string", "maxLength": 64 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "userId", "competitorName", "title", "whyItMatters", "recommendedAction"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/public/profile": {
+      "schema": "UserProfile",
+      "description": "User profile document"
+    },
+    "/users/{userId}/competitors/{competitorId}": {
+      "schema": "MonitoredCompetitor",
+      "description": "User's monitored competitors subcollection"
+    },
+    "/users/{userId}/radarAlerts/{alertId}": {
+      "schema": "RadarAlert",
+      "description": "User's radar intelligence alerts subcollection"
+    }
+  }
+}

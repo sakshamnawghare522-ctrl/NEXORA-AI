@@ -1,13 +1,22 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { supabase, isSupabaseConfigured } from '../services/supabase.ts';
+import {
+  auth,
+  signInWithGoogle as firebaseGoogleSignIn,
+  signOutUser,
+  testFirestoreConnection,
+} from '../services/firebase.ts';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { FirestoreSyncService } from '../services/firestoreSyncService.ts';
 import { AuthDemoService, UserProfile, AuthSession } from '../services/authDemoService.ts';
 
 interface AuthContextType {
   user: UserProfile | null;
   session: AuthSession | null;
   loading: boolean;
+  isFirebaseActive: boolean;
   isSupabaseActive: boolean;
   isDemoMode: boolean;
+  signInWithGoogle: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (params: {
     name: string;
@@ -26,210 +35,133 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const isSupabaseActive = useMemo(() => isSupabaseConfigured(), []);
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(!isSupabaseActive);
+  const isFirebaseActive = true;
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
-  // Initialize session on mount
+  // Initialize connection test and Firebase auth listener on mount
   useEffect(() => {
-    let mounted = true;
+    let unsubscribeSync: (() => void) | null = null;
 
-    async function initAuth() {
-      try {
-        if (isSupabaseActive && supabase) {
-          const { data, error } = await supabase.auth.getSession();
-          if (!error && data.session && mounted) {
-            const sbUser = data.session.user;
-            const mappedUser: UserProfile = {
-              id: sbUser.id,
-              email: sbUser.email || '',
-              name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'User',
-              role: (sbUser.user_metadata?.role as UserProfile['role']) || 'Account Executive',
-              company: sbUser.user_metadata?.company || 'My Workspace',
-              createdAt: sbUser.created_at,
-              isDemoUser: false,
-            };
-            setUser(mappedUser);
-            setSession({
-              user: mappedUser,
-              token: data.session.access_token,
-              expiresAt: (data.session.expires_at || 0) * 1000,
-            });
-            setIsDemoMode(false);
-            setLoading(false);
-            return;
-          }
-        }
+    // Test Firestore connection on boot
+    testFirestoreConnection().catch((err) =>
+      console.warn('[Firebase] Connection probe:', err)
+    );
 
-        // Fallback or demo session
+    // Listen to Firebase Auth state
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
+      if (fbUser) {
+        const mappedUser: UserProfile = {
+          id: fbUser.uid,
+          email: fbUser.email || '',
+          name: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+          role: 'Account Executive',
+          company: 'Nexora Enterprise',
+          createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+          isDemoUser: false,
+        };
+
+        setUser(mappedUser);
+        setSession({
+          user: mappedUser,
+          token: 'firebase_token_' + fbUser.uid,
+          expiresAt: Date.now() + 3600000 * 24,
+        });
+        setIsDemoMode(false);
+
+        // Start real-time Firestore synchronization
+        unsubscribeSync = FirestoreSyncService.initRealtimeSync(fbUser.uid);
+      } else {
+        // If not logged in via Firebase, check if demo session exists
         const stored = AuthDemoService.getStoredSession();
-        if (stored && mounted) {
+        if (stored) {
           setUser(stored.user);
           setSession(stored);
           setIsDemoMode(stored.user.isDemoUser);
+        } else {
+          setUser(null);
+          setSession(null);
+          setIsDemoMode(false);
         }
-      } catch (err) {
-        console.warn('[NexoraAuth] Error during session restoration', err);
-      } finally {
-        if (mounted) {
-          setLoading(false);
+
+        if (unsubscribeSync) {
+          unsubscribeSync();
+          unsubscribeSync = null;
         }
       }
-    }
-
-    initAuth();
-
-    // Listen to Supabase auth state change if active
-    if (isSupabaseActive && supabase) {
-      const { data: authListener } = supabase.auth.onAuthStateChange((_event, sbSession) => {
-        if (!mounted) return;
-        if (sbSession?.user) {
-          const mapped: UserProfile = {
-            id: sbSession.user.id,
-            email: sbSession.user.email || '',
-            name: sbSession.user.user_metadata?.full_name || sbSession.user.email?.split('@')[0] || 'User',
-            role: (sbSession.user.user_metadata?.role as UserProfile['role']) || 'Account Executive',
-            company: sbSession.user.user_metadata?.company || 'My Workspace',
-            createdAt: sbSession.user.created_at,
-            isDemoUser: false,
-          };
-          setUser(mapped);
-          setSession({
-            user: mapped,
-            token: sbSession.access_token,
-            expiresAt: (sbSession.expires_at || 0) * 1000,
-          });
-          setIsDemoMode(false);
-        } else {
-          // If Supabase logs out, check if we have a demo session
-          const stored = AuthDemoService.getStoredSession();
-          if (stored) {
-            setUser(stored.user);
-            setSession(stored);
-            setIsDemoMode(true);
-          } else {
-            setUser(null);
-            setSession(null);
-          }
-        }
-        setLoading(false);
-      });
-
-      return () => {
-        mounted = false;
-        authListener.subscription.unsubscribe();
-      };
-    }
+      setLoading(false);
+    });
 
     return () => {
-      mounted = false;
+      unsubscribeAuth();
+      if (unsubscribeSync) unsubscribeSync();
     };
-  }, [isSupabaseActive]);
+  }, []);
+
+  const signInWithGoogle = useCallback(async () => {
+    setLoading(true);
+    try {
+      const fbUser = await firebaseGoogleSignIn();
+      const mappedUser: UserProfile = {
+        id: fbUser.uid,
+        email: fbUser.email || '',
+        name: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+        role: 'Account Executive',
+        company: 'Nexora Enterprise',
+        createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+        isDemoUser: false,
+      };
+
+      setUser(mappedUser);
+      setSession({
+        user: mappedUser,
+        token: 'firebase_token_' + fbUser.uid,
+        expiresAt: Date.now() + 3600000 * 24,
+      });
+      setIsDemoMode(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
     setLoading(true);
     try {
-      if (isSupabaseActive && supabase) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-        if (error) {
-          throw new Error(error.message);
-        }
-        if (data.session && data.user) {
-          const mapped: UserProfile = {
-            id: data.user.id,
-            email: data.user.email || email,
-            name: data.user.user_metadata?.full_name || email.split('@')[0],
-            role: (data.user.user_metadata?.role as UserProfile['role']) || 'Account Executive',
-            company: data.user.user_metadata?.company || 'My Workspace',
-            createdAt: data.user.created_at,
-            isDemoUser: false,
-          };
-          setUser(mapped);
-          setSession({
-            user: mapped,
-            token: data.session.access_token,
-            expiresAt: (data.session.expires_at || 0) * 1000,
-          });
-          setIsDemoMode(false);
-          return;
-        }
-      }
-
-      // Demo Mode login
-      const demoSession = await AuthDemoService.signIn(email, password);
-      setUser(demoSession.user);
-      setSession(demoSession);
-      setIsDemoMode(true);
+      const authSession = await AuthDemoService.signInWithEmail(email, password);
+      setUser(authSession.user);
+      setSession(authSession);
+      setIsDemoMode(authSession.user.isDemoUser);
     } finally {
       setLoading(false);
     }
-  }, [isSupabaseActive]);
+  }, []);
 
-  const signUp = useCallback(async (params: {
-    name: string;
-    email: string;
-    password: string;
-    role: UserProfile['role'];
-    company: string;
-  }) => {
-    setLoading(true);
-    try {
-      if (isSupabaseActive && supabase) {
-        const { data, error } = await supabase.auth.signUp({
-          email: params.email.trim(),
-          password: params.password,
-          options: {
-            data: {
-              full_name: params.name.trim(),
-              role: params.role,
-              company: params.company.trim(),
-            },
-          },
-        });
-        if (error) {
-          throw new Error(error.message);
-        }
-        if (data.user) {
-          const mapped: UserProfile = {
-            id: data.user.id,
-            email: data.user.email || params.email,
-            name: params.name.trim(),
-            role: params.role,
-            company: params.company.trim(),
-            createdAt: data.user.created_at,
-            isDemoUser: false,
-          };
-          setUser(mapped);
-          if (data.session) {
-            setSession({
-              user: mapped,
-              token: data.session.access_token,
-              expiresAt: (data.session.expires_at || 0) * 1000,
-            });
-          }
-          setIsDemoMode(false);
-          return;
-        }
+  const signUp = useCallback(
+    async (params: {
+      name: string;
+      email: string;
+      password: string;
+      role: UserProfile['role'];
+      company: string;
+    }) => {
+      setLoading(true);
+      try {
+        const authSession = await AuthDemoService.signUpWithEmail(params);
+        setUser(authSession.user);
+        setSession(authSession);
+        setIsDemoMode(authSession.user.isDemoUser);
+      } finally {
+        setLoading(false);
       }
-
-      // Demo Mode signup
-      const demoSession = await AuthDemoService.signUp(params);
-      setUser(demoSession.user);
-      setSession(demoSession);
-      setIsDemoMode(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [isSupabaseActive]);
+    },
+    []
+  );
 
   const signInQuickDemo = useCallback(async (userKey: 'alex' | 'sarah' | 'david') => {
     setLoading(true);
     try {
-      const demoSession = await AuthDemoService.quickDemoLogin(userKey);
-      setUser(demoSession.user);
-      setSession(demoSession);
+      const authSession = await AuthDemoService.signInQuickDemo(userKey);
+      setUser(authSession.user);
+      setSession(authSession);
       setIsDemoMode(true);
     } finally {
       setLoading(false);
@@ -239,33 +171,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = useCallback(async () => {
     setLoading(true);
     try {
-      if (isSupabaseActive && supabase) {
-        await supabase.auth.signOut();
-      }
-      await AuthDemoService.signOut();
+      FirestoreSyncService.stopRealtimeSync();
+      await signOutUser();
+      AuthDemoService.clearStoredSession();
       setUser(null);
       setSession(null);
+      setIsDemoMode(false);
     } finally {
       setLoading(false);
     }
-  }, [isSupabaseActive]);
+  }, []);
 
-  const value = useMemo(
-    () => ({
-      user,
-      session,
-      loading,
-      isSupabaseActive,
-      isDemoMode,
-      signIn,
-      signUp,
-      signInQuickDemo,
-      signOut,
-    }),
-    [user, session, loading, isSupabaseActive, isDemoMode, signIn, signUp, signInQuickDemo, signOut]
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        isFirebaseActive,
+        isSupabaseActive: false,
+        isDemoMode,
+        signInWithGoogle,
+        signIn,
+        signUp,
+        signInQuickDemo,
+        signOut,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {

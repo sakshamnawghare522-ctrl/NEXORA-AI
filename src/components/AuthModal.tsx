@@ -15,7 +15,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   initialMode = 'signin',
 }) => {
-  const { signIn, signUp, signInQuickDemo, isSupabaseActive } = useAuth();
+  const { signIn, signUp, signInQuickDemo, signInWithGoogle, isFirebaseActive } = useAuth();
 
   const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [email, setEmail] = useState('');
@@ -59,6 +59,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    try {
+      await signInWithGoogle();
+      setSuccessMessage('Successfully signed in with Google!');
+      setTimeout(() => onClose(), 600);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Password strength calculation
   const getPasswordStrength = (pass: string): { label: string; score: number; color: string } => {
@@ -195,64 +209,103 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
             </div>
 
-            {/* Mode Indicator Banner */}
-            <div className={`radar-auth-banner ${isSupabaseActive ? 'supabase' : 'demo'}`}>
+            {/* Mode Indicator Banner: Firebase Realtime Live Auth */}
+            <div className="radar-auth-banner supabase" style={{ background: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {isSupabaseActive ? (
-                  <>
-                    <ShieldCheck size={16} color="var(--radar-green-pulse)" />
-                    <div>
-                      <span className="radar-banner-title">Supabase Live Auth Active</span>
-                      <span className="radar-banner-desc">Connected to project PostgreSQL schema</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Zap size={16} color="#d97706" />
-                    <div>
-                      <span className="radar-banner-title">Hackathon Demo Mode</span>
-                      <span className="radar-banner-desc">Instant 1-click test credentials or create demo account</span>
-                    </div>
-                  </>
-                )}
+                <ShieldCheck size={16} color="var(--radar-green-pulse)" />
+                <div>
+                  <span className="radar-banner-title">Firebase Auth &amp; Firestore Active</span>
+                  <span className="radar-banner-desc">Real-time database persistence enabled across sessions</span>
+                </div>
               </div>
             </div>
 
+            {/* Primary Action: Google Sign-In */}
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isSubmitting}
+              className="radar-google-signin-btn"
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                padding: '11px 16px',
+                borderRadius: '10px',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                color: '#0f172a',
+                fontSize: '14px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.35 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.35 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                />
+              </svg>
+              <span>{isSubmitting ? 'Signing in...' : 'Continue with Google'}</span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '2px 0' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+              <span style={{ fontSize: '11px', color: 'var(--radar-gray-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                or instant demo access
+              </span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
+            </div>
+
             {/* Quick Demo Login Shortcut Buttons */}
-            {!isSupabaseActive && (
-              <div className="radar-quick-demo-box">
-                <span className="radar-quick-demo-label">Instant Demo Evaluation Access:</span>
-                <div className="radar-quick-demo-buttons">
-                  <button
-                    className="radar-quick-btn"
-                    onClick={() => handleQuickDemo('alex')}
-                    disabled={isSubmitting}
-                    type="button"
-                  >
-                    <span>⚡ Alex Morgan</span>
-                    <small>Senior AE</small>
-                  </button>
-                  <button
-                    className="radar-quick-btn"
-                    onClick={() => handleQuickDemo('sarah')}
-                    disabled={isSubmitting}
-                    type="button"
-                  >
-                    <span>⚡ Sarah Chen</span>
-                    <small>VP Marketing</small>
-                  </button>
-                  <button
-                    className="radar-quick-btn"
-                    onClick={() => handleQuickDemo('david')}
-                    disabled={isSubmitting}
-                    type="button"
-                  >
-                    <span>⚡ David Kim</span>
-                    <small>Founder</small>
-                  </button>
-                </div>
+            <div className="radar-quick-demo-box">
+              <span className="radar-quick-demo-label">Instant Demo Evaluation Access:</span>
+              <div className="radar-quick-demo-buttons">
+                <button
+                  className="radar-quick-btn"
+                  onClick={() => handleQuickDemo('alex')}
+                  disabled={isSubmitting}
+                  type="button"
+                >
+                  <span>⚡ Alex Morgan</span>
+                  <small>Senior AE</small>
+                </button>
+                <button
+                  className="radar-quick-btn"
+                  onClick={() => handleQuickDemo('sarah')}
+                  disabled={isSubmitting}
+                  type="button"
+                >
+                  <span>⚡ Sarah Chen</span>
+                  <small>VP Marketing</small>
+                </button>
+                <button
+                  className="radar-quick-btn"
+                  onClick={() => handleQuickDemo('david')}
+                  disabled={isSubmitting}
+                  type="button"
+                >
+                  <span>⚡ David Kim</span>
+                  <small>Founder</small>
+                </button>
               </div>
-            )}
+            </div>
 
             {/* Tabs: Sign In vs Sign Up */}
             <div className="radar-auth-tabs">

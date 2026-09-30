@@ -108,6 +108,24 @@ export class AuthDemoService {
     }
   }
 
+  static async signInWithEmail(email: string, password: string): Promise<AuthSession> {
+    return this.signIn(email, password);
+  }
+
+  static async signUpWithEmail(params: {
+    name: string;
+    email: string;
+    password: string;
+    role: UserProfile['role'];
+    company: string;
+  }): Promise<AuthSession> {
+    return this.signUp(params);
+  }
+
+  static async signInQuickDemo(userKey: 'alex' | 'sarah' | 'david'): Promise<AuthSession> {
+    return this.quickDemoLogin(userKey);
+  }
+
   static async signIn(email: string, password: string): Promise<AuthSession> {
     // Simulate real network auth latency
     await new Promise((resolve) => setTimeout(resolve, 600));

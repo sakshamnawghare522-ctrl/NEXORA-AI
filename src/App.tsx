@@ -1,19 +1,43 @@
 import { useState, useCallback } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.tsx';
 import { Navbar, NavDestination } from './components/Navbar.tsx';
-import { HeroSection } from './components/HeroSection.tsx';
-import { InteractivePipelineSection } from './components/InteractivePipelineSection.tsx';
 import { NexoraChatSection } from './components/chat/NexoraChatSection.tsx';
+import { HomeView } from './components/views/HomeView.tsx';
+import { CompetitorsView } from './components/views/CompetitorsView.tsx';
+import { CompetitorDetailView } from './components/views/CompetitorDetailView.tsx';
+import { InsightsView } from './components/views/InsightsView.tsx';
+import { BattlecardsView } from './components/views/BattlecardsView.tsx';
+import { CounterPitchView } from './components/views/CounterPitchView.tsx';
+import { MonitoringView } from './components/views/MonitoringView.tsx';
+import { CompetitiveRadarView } from './components/views/CompetitiveRadarView.tsx';
+import { SettingsView } from './components/views/SettingsView.tsx';
+import { DiscoverView } from './components/views/DiscoverView.tsx';
 import { MenuDrawer } from './components/MenuDrawer.tsx';
 import { LiveIntelligenceDrawer } from './components/LiveIntelligenceDrawer.tsx';
 import { AuthModal } from './components/AuthModal.tsx';
 import { Footer } from './components/Footer.tsx';
+import { MonitoredCompetitor, CompetitorsStore } from './services/competitorsStore.ts';
+import {
+  Home,
+  MessageSquare,
+  Search,
+  Zap,
+  MoreHorizontal,
+  Shield,
+  FileText,
+  Activity,
+  Sliders,
+} from 'lucide-react';
 
 function MainApp() {
   const { user } = useAuth();
-  const [activeView, setActiveView] = useState<'pipeline' | 'chat'>('pipeline');
   const [activeNav, setActiveNav] = useState<NavDestination>('home');
-  const [pipelineStep, setPipelineStep] = useState<number>(1);
+  const [selectedCompetitor, setSelectedCompetitor] = useState<MonitoredCompetitor | null>(null);
+  const [initialChatQuery, setInitialChatQuery] = useState<string>('');
+  const [counterPitchCompetitor, setCounterPitchCompetitor] = useState<string>('');
+  const [counterPitchObjection, setCounterPitchObjection] = useState<string>('');
+  const [battlecardCompetitor, setBattlecardCompetitor] = useState<string>('');
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLiveStatusOpen, setIsLiveStatusOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -24,145 +48,215 @@ function MainApp() {
     setIsAuthModalOpen(true);
   }, []);
 
-  const handleNavSelection = useCallback(
-    (destination: NavDestination) => {
-      setActiveNav(destination);
+  const handleNavSelection = useCallback((destination: NavDestination) => {
+    setActiveNav(destination);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
-      if (destination === 'chat') {
-        setActiveView('chat');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
+  // When user asks a question from any page (Home, Competitor, Insights, etc.)
+  const handleAskQuestion = useCallback((query: string) => {
+    setInitialChatQuery(query);
+    setActiveNav('chat');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
-      setActiveView('pipeline');
+  // When user clicks [View Competitor]
+  const handleSelectCompetitor = useCallback((competitor: MonitoredCompetitor) => {
+    setSelectedCompetitor(competitor);
+    setActiveNav('competitor-detail');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
-      if (destination === 'home') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
+  // When user clicks [Create Battlecard] from competitor detail
+  const handleNavigateToBattlecards = useCallback((compName: string) => {
+    setBattlecardCompetitor(compName);
+    setActiveNav('battlecards');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
-      if (destination === 'competitors') {
-        setPipelineStep(1);
-      } else if (destination === 'insights') {
-        setPipelineStep(3);
-      } else if (destination === 'battlecards') {
-        setPipelineStep(4);
-      }
-
-      setTimeout(() => {
-        const el = document.getElementById('see-how-it-works');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 50);
+  // When user clicks [Create Counter-Pitch]
+  const handleNavigateToCounterPitch = useCallback(
+    (competitor: string, objection?: string) => {
+      setCounterPitchCompetitor(competitor);
+      if (objection) setCounterPitchObjection(objection);
+      setActiveNav('counter-pitch');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     []
   );
 
-  const handleStepChange = useCallback((step: number) => {
-    setPipelineStep(step);
-    if (step === 1) setActiveNav('competitors');
-    else if (step === 2 || step === 3) setActiveNav('insights');
-    else if (step === 4) setActiveNav('battlecards');
-  }, []);
-
-  const handleScrollToPipeline = useCallback(() => {
-    setActiveView('pipeline');
-    setActiveNav('competitors');
-    setPipelineStep(1);
-    setTimeout(() => {
-      const el = document.getElementById('see-how-it-works');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 50);
-  }, []);
-
-  const handleExploreClick = useCallback(() => {
-    if (!user) {
-      handleOpenAuth('signup');
-    } else {
-      setActiveView('chat');
-      setActiveNav('chat');
-    }
-  }, [user, handleOpenAuth]);
-
-  const handleSelectFeatureTag = useCallback((tag: string) => {
-    handleScrollToPipeline();
-    console.log(`[Nexora] Feature Tag Selected: ${tag}`);
-  }, [handleScrollToPipeline]);
-
   const handleNavigateFromMenu = useCallback((sectionId: string) => {
-    if (sectionId === 'chat-view') {
-      setActiveView('chat');
+    if (sectionId === 'discover-section' || sectionId === 'find-competitors') {
+      setActiveNav('discover');
+    } else if (sectionId === 'chat-view') {
       setActiveNav('chat');
-      return;
-    }
-
-    if (sectionId === 'home') {
-      setActiveView('pipeline');
-      setActiveNav('home');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    setActiveView('pipeline');
-    if (sectionId === 'competitors-section') {
+    } else if (sectionId === 'competitors-section') {
       setActiveNav('competitors');
-      setPipelineStep(1);
     } else if (sectionId === 'ai-analysis-section' || sectionId === 'diff-section') {
       setActiveNav('insights');
-      setPipelineStep(3);
-    } else if (sectionId === 'battlecards-section' || sectionId === 'simulator-section') {
+    } else if (sectionId === 'battlecards-section') {
       setActiveNav('battlecards');
-      setPipelineStep(4);
+    } else if (sectionId === 'simulator-section') {
+      setActiveNav('counter-pitch');
+    } else if (sectionId === 'monitoring-section' || sectionId === 'radar-section') {
+      setActiveNav('radar');
+    } else if (sectionId === 'settings-section') {
+      setActiveNav('settings');
+    } else {
+      setActiveNav('home');
     }
-
-    setTimeout(() => {
-      const el = document.getElementById('see-how-it-works');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 50);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: '100vh', background: 'var(--radar-white)' }}>
       {/* Top Fixed Navbar */}
       <Navbar
-        activeItem={activeView === 'chat' ? 'chat' : activeNav}
+        activeItem={activeNav}
         onNavigate={handleNavSelection}
         onOpenMenu={() => setIsMenuOpen(true)}
         onOpenLiveStatus={() => setIsLiveStatusOpen(true)}
         onOpenAuth={handleOpenAuth}
-        activeView={activeView}
-        onChangeView={(view) => {
-          setActiveView(view);
-          setActiveNav(view === 'chat' ? 'chat' : 'home');
-        }}
         isMenuOpen={isMenuOpen}
       />
 
-      {/* Main Content Area */}
-      <main>
-        {activeView === 'pipeline' ? (
-          <>
-            <HeroSection
-              onExploreClick={handleExploreClick}
-              onSeeHowItWorksClick={handleScrollToPipeline}
-              onSelectFeatureTag={handleSelectFeatureTag}
-            />
+      {/* Main Content Area (ONE FEATURE = ONE SIMPLE PAGE) */}
+      <main style={{ minHeight: 'calc(100vh - 72px)', paddingBottom: '60px' }}>
+        {activeNav === 'home' && (
+          <HomeView
+            onAskQuestion={handleAskQuestion}
+            onNavigate={handleNavSelection}
+          />
+        )}
 
-            {/* Core Interactive Pipeline & Counter-Pitch Simulator */}
-            <InteractivePipelineSection
-              activeStep={pipelineStep}
-              onStepChange={handleStepChange}
-            />
-          </>
-        ) : (
-          <NexoraChatSection />
+        {activeNav === 'discover' && (
+          <DiscoverView
+            onAskQuestion={handleAskQuestion}
+            onNavigateToBattlecards={handleNavigateToBattlecards}
+            onNavigateToCounterPitch={handleNavigateToCounterPitch}
+            onNavigateToMonitoring={() => setActiveNav('monitoring')}
+            onNavigate={handleNavSelection}
+          />
+        )}
+
+        {activeNav === 'chat' && (
+          <NexoraChatSection
+            initialQuery={initialChatQuery}
+            onClearInitialQuery={() => setInitialChatQuery('')}
+          />
+        )}
+
+        {activeNav === 'competitors' && (
+          <CompetitorsView
+            onAskQuestion={handleAskQuestion}
+            onSelectCompetitor={handleSelectCompetitor}
+            onNavigateToBattlecards={handleNavigateToBattlecards}
+            onNavigateToDiscover={() => setActiveNav('discover')}
+          />
+        )}
+
+        {activeNav === 'competitor-detail' && selectedCompetitor && (
+          <CompetitorDetailView
+            competitor={selectedCompetitor}
+            onBack={() => setActiveNav('competitors')}
+            onAskQuestion={handleAskQuestion}
+            onNavigateToBattlecards={handleNavigateToBattlecards}
+            onNavigateToCounterPitch={handleNavigateToCounterPitch}
+          />
+        )}
+
+        {activeNav === 'insights' && (
+          <InsightsView
+            onAskQuestion={handleAskQuestion}
+            onNavigateToCounterPitch={handleNavigateToCounterPitch}
+          />
+        )}
+
+        {activeNav === 'battlecards' && (
+          <BattlecardsView
+            onAskQuestion={handleAskQuestion}
+            initialCompetitor={battlecardCompetitor}
+          />
+        )}
+
+        {activeNav === 'counter-pitch' && (
+          <CounterPitchView
+            onAskQuestion={handleAskQuestion}
+            initialCompetitor={counterPitchCompetitor}
+            initialObjection={counterPitchObjection}
+          />
+        )}
+
+        {(activeNav === 'radar' || activeNav === 'monitoring') && (
+          <CompetitiveRadarView
+            onAskQuestion={handleAskQuestion}
+            onNavigateToBattlecards={handleNavigateToBattlecards}
+            onNavigateToCounterPitch={handleNavigateToCounterPitch}
+            onSelectCompetitor={handleSelectCompetitor}
+            onNavigate={handleNavSelection}
+          />
+        )}
+
+        {activeNav === 'settings' && (
+          <SettingsView
+            onOpenAuthModal={() => handleOpenAuth('signin')}
+          />
         )}
       </main>
+
+      {/* Mobile Bottom Navigation Bar (Easy 1-thumb touch navigation) */}
+      <nav className="nexora-mobile-bottom-nav" aria-label="Mobile Navigation">
+        <button
+          className={`nexora-bottom-nav-item ${activeNav === 'home' ? 'active' : ''}`}
+          onClick={() => handleNavSelection('home')}
+          type="button"
+        >
+          <Home size={18} />
+          <span>Home</span>
+        </button>
+
+        <button
+          className={`nexora-bottom-nav-item ${activeNav === 'chat' ? 'active' : ''}`}
+          onClick={() => handleNavSelection('chat')}
+          type="button"
+        >
+          <MessageSquare size={18} />
+          <span>Chat</span>
+        </button>
+
+        <button
+          className={`nexora-bottom-nav-item ${
+            activeNav === 'competitors' || activeNav === 'competitor-detail' ? 'active' : ''
+          }`}
+          onClick={() => handleNavSelection('competitors')}
+          type="button"
+        >
+          <Search size={18} />
+          <span>Competitors</span>
+        </button>
+
+        <button
+          className={`nexora-bottom-nav-item ${activeNav === 'insights' ? 'active' : ''}`}
+          onClick={() => handleNavSelection('insights')}
+          type="button"
+        >
+          <Zap size={18} />
+          <span>Insights</span>
+        </button>
+
+        <button
+          className={`nexora-bottom-nav-item ${
+            activeNav === 'counter-pitch' || activeNav === 'monitoring' || activeNav === 'settings'
+              ? 'active'
+              : ''
+          }`}
+          onClick={() => setIsMenuOpen(true)}
+          type="button"
+        >
+          <MoreHorizontal size={18} />
+          <span>More</span>
+        </button>
+      </nav>
 
       {/* Footer */}
       <Footer />
@@ -174,7 +268,6 @@ function MainApp() {
         onNavigate={handleNavigateFromMenu}
         onOpenAuth={handleOpenAuth}
         onOpenChat={() => {
-          setActiveView('chat');
           setActiveNav('chat');
         }}
       />

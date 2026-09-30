@@ -22,7 +22,15 @@ import { ChatMessageItem } from './ChatMessageItem.tsx';
 import { ChatWelcomeScreen } from './ChatWelcomeScreen.tsx';
 import { ChatInput } from './ChatInput.tsx';
 
-export const NexoraChatSection: React.FC = () => {
+export interface NexoraChatSectionProps {
+  initialQuery?: string;
+  onClearInitialQuery?: () => void;
+}
+
+export const NexoraChatSection: React.FC<NexoraChatSectionProps> = ({
+  initialQuery,
+  onClearInitialQuery,
+}) => {
   const { user } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -442,6 +450,14 @@ export const NexoraChatSection: React.FC = () => {
     },
     [input, isGenerating, activeConversationId, userId, workspaceId, reloadConversations, messages, conversations, user]
   );
+
+  // Auto-send initialQuery if triggered from another page (e.g. Home, Competitors, Insights)
+  useEffect(() => {
+    if (initialQuery && initialQuery.trim()) {
+      handleSendMessage(initialQuery.trim());
+      onClearInitialQuery?.();
+    }
+  }, [initialQuery, handleSendMessage, onClearInitialQuery]);
 
   // 5. Handle Clarification Form Submission from ClarificationCard
   const handleClarificationSubmit = useCallback(

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ArrowRight, ShieldCheck, Sparkles, Activity, FileText, LogIn, LogOut, User, MessageSquare } from 'lucide-react';
+import { X, ArrowRight, ShieldCheck, Sparkles, Activity, FileText, LogIn, LogOut, User, MessageSquare, Compass } from 'lucide-react';
 import { NexoraLogo } from './NexoraLogo.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
 
@@ -49,10 +49,15 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
       icon: Activity,
     },
     {
+      label: 'Find Competitors',
+      target: 'discover-section',
+      icon: Compass,
+      highlight: true,
+    },
+    {
       label: 'Chat',
       target: 'chat-view',
       icon: MessageSquare,
-      highlight: true,
     },
     {
       label: 'Competitors',
@@ -68,6 +73,21 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
       label: 'Battlecards',
       target: 'battlecards-section',
       icon: FileText,
+    },
+    {
+      label: 'Counter-Pitch',
+      target: 'simulator-section',
+      icon: ShieldCheck,
+    },
+    {
+      label: 'Monitoring',
+      target: 'monitoring-section',
+      icon: Activity,
+    },
+    {
+      label: 'Settings',
+      target: 'settings-section',
+      icon: Sparkles,
     },
   ];
 

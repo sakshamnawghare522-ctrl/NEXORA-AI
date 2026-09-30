@@ -1,11 +1,36 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogIn, Menu, X } from 'lucide-react';
+import {
+  LogIn,
+  Menu,
+  X,
+  ChevronDown,
+  Activity,
+  Sliders,
+  Shield,
+  Zap,
+  Home,
+  MessageSquare,
+  Search,
+  FileText,
+  Compass,
+} from 'lucide-react';
 import { NexoraLogo } from './NexoraLogo.tsx';
 import { useAuth } from '../context/AuthContext.tsx';
 import { UserProfileMenu } from './UserProfileMenu.tsx';
 
-export type NavDestination = 'home' | 'chat' | 'competitors' | 'insights' | 'battlecards';
+export type NavDestination =
+  | 'home'
+  | 'radar'
+  | 'discover'
+  | 'chat'
+  | 'competitors'
+  | 'competitor-detail'
+  | 'insights'
+  | 'battlecards'
+  | 'counter-pitch'
+  | 'monitoring'
+  | 'settings';
 
 export interface NavbarProps {
   activeItem?: NavDestination;
@@ -13,57 +38,33 @@ export interface NavbarProps {
   onOpenMenu?: () => void;
   onOpenLiveStatus?: () => void;
   onOpenAuth: (mode?: 'signin' | 'signup') => void;
-  activeView?: 'pipeline' | 'chat';
-  onChangeView?: (view: 'pipeline' | 'chat') => void;
   isMenuOpen?: boolean;
 }
 
-const NAV_ITEMS: { id: NavDestination; label: string }[] = [
-  { id: 'home', label: 'Home' },
-  { id: 'chat', label: 'Chat' },
-  { id: 'competitors', label: 'Competitors' },
-  { id: 'insights', label: 'Insights' },
-  { id: 'battlecards', label: 'Battlecards' },
+export const ALL_NAV_ITEMS: { id: NavDestination; label: string; icon: React.FC<{ size: number }> }[] = [
+  { id: 'home', label: 'Home', icon: Home },
+  { id: 'radar', label: 'Competitive Radar', icon: Activity },
+  { id: 'discover', label: 'Find Competitors', icon: Compass },
+  { id: 'chat', label: 'Chat', icon: MessageSquare },
+  { id: 'competitors', label: 'Competitors', icon: Search },
+  { id: 'insights', label: 'Insights', icon: Zap },
+  { id: 'battlecards', label: 'Battlecards', icon: FileText },
+  { id: 'counter-pitch', label: 'Counter-Pitch', icon: Shield },
+  { id: 'settings', label: 'Settings', icon: Sliders },
 ];
 
 export const Navbar: React.FC<NavbarProps> = ({
-  activeItem,
+  activeItem = 'home',
   onNavigate,
   onOpenAuth,
-  activeView = 'pipeline',
-  onChangeView,
 }) => {
   const { user } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // Determine which nav item is active
-  const currentActive: NavDestination =
-    activeItem || (activeView === 'chat' ? 'chat' : 'home');
-
   const handleItemClick = (destination: NavDestination) => {
     setIsMobileOpen(false);
-
-    if (onNavigate) {
-      onNavigate(destination);
-      return;
-    }
-
-    // Default fallback handling if onNavigate is not passed
-    if (destination === 'chat') {
-      onChangeView?.('chat');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (destination === 'home') {
-      onChangeView?.('pipeline');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      onChangeView?.('pipeline');
-      setTimeout(() => {
-        const el = document.getElementById('see-how-it-works');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth' });
-        }
-      }, 50);
-    }
+    onNavigate?.(destination);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -89,11 +90,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
       </div>
 
-      {/* Center: Main Navigation Links ('Home', 'Chat', 'Competitors', 'Insights', 'Battlecards') */}
+      {/* Center: Desktop Navigation Links (ONE FEATURE = ONE SIMPLE PAGE) */}
       <nav className="radar-nav-center radar-nav-interactive" aria-label="Primary Navigation">
         <div className="radar-nav-pill-group" role="tablist">
-          {NAV_ITEMS.map((item) => {
-            const isActive = currentActive === item.id;
+          {ALL_NAV_ITEMS.map((item) => {
+            const isActive =
+              activeItem === item.id ||
+              (item.id === 'competitors' && activeItem === 'competitor-detail') ||
+              (item.id === 'radar' && activeItem === 'monitoring');
             return (
               <button
                 key={item.id}
@@ -110,7 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </nav>
 
-      {/* Right: Auth / Profile Area & Mobile Toggle */}
+      {/* Right: Auth / Profile Area & Mobile Hamburger */}
       <div className="radar-nav-right radar-nav-interactive">
         {user ? (
           <UserProfileMenu />
@@ -126,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Mobile Navigation Toggle */}
+        {/* Mobile Navigation Hamburger */}
         <button
           className="radar-mobile-menu-btn"
           onClick={() => setIsMobileOpen((prev) => !prev)}
@@ -134,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           aria-expanded={isMobileOpen}
           type="button"
         >
-          {isMobileOpen ? <X size={16} /> : <Menu size={16} />}
+          {isMobileOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
       </div>
 
@@ -148,8 +152,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
           >
-            {NAV_ITEMS.map((item) => {
-              const isActive = currentActive === item.id;
+            {ALL_NAV_ITEMS.map((item) => {
+              const isActive =
+                activeItem === item.id ||
+                (item.id === 'competitors' && activeItem === 'competitor-detail');
+              const IconComponent = item.icon;
               return (
                 <button
                   key={item.id}
@@ -157,14 +164,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => handleItemClick(item.id)}
                   type="button"
                 >
-                  <span>{item.label}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <IconComponent size={16} />
+                    <span>{item.label}</span>
+                  </div>
                   {isActive && (
                     <span
                       style={{
                         width: '6px',
                         height: '6px',
                         borderRadius: '50%',
-                        backgroundColor: 'var(--radar-white)',
+                        backgroundColor: 'currentColor',
                       }}
                       aria-hidden="true"
                     />
@@ -178,4 +188,3 @@ export const Navbar: React.FC<NavbarProps> = ({
     </motion.header>
   );
 };
-
